@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Terraform — local plugins & state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+
+# ML artifacts — generated or DVC-tracked, never in git
+models/
+*.pkl
+mlruns/
+**/src/data/
+
+# Secrets & local env
+.env
+
+# OS
+.DS_Store
+Thumbs.db
