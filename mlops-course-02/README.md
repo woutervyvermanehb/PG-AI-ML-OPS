@@ -88,10 +88,21 @@ All Terraform files live under the `terraform/` folder
 - Variable Management: Centralized in `variables.tf`.
 
 ## 3. Terraform Configuration
-Uses variables for AWS region `var.aws_region` to allow for different environments.
-Configures a remote backend `backend "s3" {}` so state is managed in S3, not locally.
 
-`provider.tf`
+This is where we tell Terraform *what* to build and *where* to keep track of it. Before walking through the files one by one, here's the mental model — it explains why we open some files and leave others alone.
+
+Think of the setup as three kinds of files:
+
+- **The recipe (written once).** `modules/s3-bucket/` describes how to build a single bucket. You write it once, then reuse it for every bucket you need — so you never open it again just to add another bucket.
+- **The knobs and their values.** `variables.tf` lists the settings that are allowed to change (region, environment, which buckets to create). `environments/*.tfvars` fills in those settings for one specific environment. These are the files you edit most often.
+- **The wiring.** `provider.tf` and `backends/*.conf` tell Terraform which cloud to talk to and where the shared state file lives.
+
+Rule of thumb: you open a file either to *define a reusable piece* or to *set a value that differs per environment*. Everything else you can leave as-is.
+
+---
+
+**`provider.tf` — which cloud, and where state is stored.**
+It points Terraform at AWS, and sets the region from a variable (`var.aws_region`) so each environment can use a different one. The empty `backend "s3" {}` says "keep the state file remotely in S3 rather than on your laptop" — the actual bucket and key are filled in later by the backend config, which is why this block is left blank here.
 ```hcl
 terraform {
   required_providers {
@@ -109,7 +120,8 @@ provider "aws" {
 }
 ```
 
-Each environment has its own backend configuration file, parameterizing the S3 bucket, state file key, and region.
+**`backends/{env}.conf` — where each environment's state file lives.**
+This is the missing half of the empty `backend "s3" {}` above. Each environment gets its own file so dev, test, and prod each keep a separate state file (a different `key`) in the backend bucket, and never overwrite each other.
 
 `backends/{env}.conf`
 ```terraform
@@ -117,7 +129,8 @@ bucket  = "terraform-backends-ehb"
 key     = "terraform-{env}.tfstate"
 region  = "eu-west-1"
 ```
-All environment-specific or customizable settings (like region, environment, resource delimiter, and S3 buckets) are defined as variables.
+**`variables.tf` — the list of knobs you're allowed to turn.**
+This file only *declares* what can be configured (region, environment name, the naming delimiter, the list of buckets) and their defaults. It doesn't set the real values — those come from the `.tfvars` file further down. Think of it as the form, and `.tfvars` as filling in the form.
 
 `variables.tf`
 ```hcl
@@ -145,7 +158,8 @@ variable "s3_buckets" {
 }
 ```
 
-Uses a module to define S3 buckets, leveraging the for_each construct to dynamically create as many buckets as you need, with consistent naming and tagging.
+**`s3_buckets.tf` — calls the recipe once per bucket.**
+This is where the reusable module gets put to work. Instead of copy-pasting a bucket block for every bucket, `for_each` loops over the `s3_buckets` list and calls the module once for each entry — giving every bucket a consistent name (`<key>-<environment>`) and tag automatically. Want another bucket? You don't touch this file or the module — you just add an entry to the `.tfvars` list below.
 
 `s3_buckets.tf`
 ```hcl
@@ -158,15 +172,16 @@ module "s3_bucket" {
 }
 ```
 
-All variable values specific to an environment. Easy switching between dev, test, and prod by changing which tfvars file you use.
+**`environments/{env}.tfvars` — the actual values for one environment.**
+This is the form from `variables.tf`, filled in. It's the file you'll edit day to day: change the environment name, or add/remove buckets. Switching between dev, test, and prod is just a matter of pointing Terraform at a different `.tfvars` file — the rest of the code stays the same.
 
 `environments/{env}.tfvars`
 ```hcl
 environment = "dev"
-location    = "eu-west-1"
+aws_region  = "eu-west-1"
 
 
-s3 = [
+s3_buckets = [
   {
     key  = "mlops-course-ehb-datastore"
     tags = {}
