@@ -47,15 +47,17 @@ jobs:
           mkdir -p models/
           python main.py
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push docker image to Amazon ECR
+      - name: Log in, build, tag, and push image to Amazon ECR
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          REGISTRY: 774118824883.dkr.ecr.eu-west-1.amazonaws.com
+          REPOSITORY: ecr-mlops-course-ehb-repository-dev
           IMAGE_TAG: latest
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          # Log in to ECR directly via the AWS CLI, retrying on transient network timeouts
+          for i in 1 2 3 4 5; do
+            aws ecr get-login-password --region eu-west-1 \
+              | docker login --username AWS --password-stdin "$REGISTRY" && break
+            echo "ECR login attempt $i failed; retrying in 10s..."; sleep 10
+          done
+          docker build -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"

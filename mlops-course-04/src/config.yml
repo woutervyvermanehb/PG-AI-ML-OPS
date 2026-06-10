@@ -1,4 +1,5 @@
-data: 
+# Course 04 ML pipeline configuration (model + data paths)
+data:
   train_path: data/train.csv
   test_path: data/test.csv
 
@@ -7,18 +8,18 @@ train:
   random_state: 42
   shuffle: true
 
-model:
-  name: DecisionTreeClassifier
-  params:
-    criterion: entropy
-    max_depth: null
-  store_path: models/
-
-  # name: GradientBoostingClassifier
+  # name: DecisionTreeClassifier
   # params:
+  #   criterion: entropy
   #   max_depth: null
-  #   n_estimators: 10
   # store_path: models/
+
+model:
+  name: GradientBoostingClassifier
+  params:
+    max_depth: null
+    n_estimators: 10
+  store_path: models/
 
   # name: RandomForestClassifier
   # params:
