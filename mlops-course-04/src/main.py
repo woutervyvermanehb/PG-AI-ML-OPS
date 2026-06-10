@@ -60,19 +60,25 @@ def mlflow_main():
         mlflow.log_metric('recall', report['weighted avg']['recall'])
         mlflow.sklearn.log_model(trainer.pipeline, "model", signature=signature)
 
-        # Register the model
-        model_name = "insurance_model" 
+        # Register the model. The MLflow Model Registry requires a database-backed
+        # tracking store (e.g. sqlite/postgres). When running against the default
+        # local file store (as in CI), registration is unavailable, so we skip it
+        # rather than fail the pipeline - the model.pkl artifact is already saved.
+        model_name = "insurance_model"
         model_uri = f"runs:/{run.info.run_id}/model"
-        mlflow.register_model(model_uri, model_name)
+        try:
+            mlflow.register_model(model_uri, model_name)
+        except Exception as e:
+            logging.warning(f"Skipping model registration (no registry available): {e}")
 
         logging.info("MLflow tracking completed successfully")
 
         # Print evaluation results
-        print("n============= Model Evaluation Results ==============")
+        print("\n============= Model Evaluation Results ==============")
         print(f"Model: {trainer.model_name}")
         print(f"Accuracy Score: {accuracy:.4f}, ROC AUC Score: {roc_auc_score:.4f}")
-        print(f"n{class_report}")
-        print("=====================================================n")
+        print(f"\n{class_report}")
+        print("=====================================================\n")
 
 if __name__ == "__main__":
     mlflow_main()
